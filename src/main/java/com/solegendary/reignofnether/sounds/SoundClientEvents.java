@@ -42,14 +42,16 @@ public class SoundClientEvents {
     }
 
     public static void playFactionCalmTheme(Faction faction, String playerName) {
-        if (MC.player != null && MC.player.getName().getString().equals(playerName)) {
-            switch (faction) {
-                case VILLAGERS ->
-                        SoundClientEvents.playFadeableMusicInstance(new FadeableMusicInstance(SoundRegistrar.VILLAGER_CALM_THEME_SONG.get()), 5200);
-                case MONSTERS ->
-                        SoundClientEvents.playFadeableMusicInstance(new FadeableMusicInstance(SoundRegistrar.MONSTER_CALM_THEME_SONG.get()), 5200);
-                case PIGLINS ->
-                        SoundClientEvents.playFadeableMusicInstance(new FadeableMusicInstance(SoundRegistrar.PIGLIN_CALM_THEME_SONG.get()), 5200);
+    if (MC.player != null && MC.player.getName().getString().equals(playerName)) {
+        // By removing the 5200, we default to the overloaded method that passes '0' ticks.
+        // A tick limit of '0' disables the timer, allowing the song to loop forever natively!
+        switch (faction) {
+            case VILLAGERS ->
+                    SoundClientEvents.playFadeableMusicInstance(new FadeableMusicInstance(SoundRegistrar.VILLAGER_CALM_THEME_SONG.get()));
+            case MONSTERS ->
+                    SoundClientEvents.playFadeableMusicInstance(new FadeableMusicInstance(SoundRegistrar.MONSTER_CALM_THEME_SONG.get()));
+            case PIGLINS ->
+                    SoundClientEvents.playFadeableMusicInstance(new FadeableMusicInstance(SoundRegistrar.PIGLIN_CALM_THEME_SONG.get()));
             }
         }
     }

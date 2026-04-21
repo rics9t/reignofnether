@@ -30,16 +30,22 @@ public class SoundClientEvents {
     private static final Minecraft MC = Minecraft.getInstance();
 
     @SubscribeEvent
-    public static void onClientTick(TickEvent.ClientTickEvent evt) {
-        if (evt.phase != TickEvent.Phase.END) {
-            return;
-        }
-        if (songTicksLeft > 0) {
-            songTicksLeft -= 1;
-            if (customSong != null && songTicksLeft <= 0)
-                stopFadeableMusicInstance();
-        }
+public static void onClientTick(TickEvent.ClientTickEvent evt) {
+    if (evt.phase != TickEvent.Phase.END) {
+        return;
     }
+
+    // ADD THIS: Clear the song variable safely when leaving the server
+    if (MC.level == null && customSong != null) {
+        customSong = null;
+    }
+
+    if (songTicksLeft > 0) {
+        songTicksLeft -= 1;
+        if (customSong != null && songTicksLeft <= 0)
+            stopFadeableMusicInstance();
+    }
+}
 
     public static void playFactionCalmTheme(Faction faction, String playerName) {
     if (MC.player != null && MC.player.getName().getString().equals(playerName)) {

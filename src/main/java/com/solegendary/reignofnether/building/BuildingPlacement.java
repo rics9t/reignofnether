@@ -889,11 +889,21 @@ public class BuildingPlacement {
     }
 
     @OnlyIn(Dist.CLIENT)
-    private void handleClientTick() {
-        if (!blockPlaceQueue.isEmpty()) {
-            blockPlaceQueue.remove(0);
+private void handleClientTick() {
+    if (!blockPlaceQueue.isEmpty()) {
+        blockPlaceQueue.remove(0);
+    }
+
+    // ADD THIS: Resume the music if the player relogs (Capitol exists, but music is null)
+    if (this.isCapitol && this.isBuilt && !SandboxClientEvents.isSandboxPlayer()) {
+        net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
+        if (mc.player != null && this.ownerName.equals(mc.player.getName().getString())) {
+            if (SoundClientEvents.customSong == null) {
+                SoundClientEvents.playFactionCalmTheme(this.getFaction(), this.ownerName);
+            }
         }
     }
+}
 
     private void handleServerTick(ServerLevel serverLevel, float blocksPlaced, float blocksTotal) {
         ArrayList<WorkerUnit> workerUnits = getBuilders(serverLevel);

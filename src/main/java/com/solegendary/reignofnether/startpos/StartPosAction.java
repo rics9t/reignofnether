@@ -12,5 +12,7 @@ public enum StartPosAction {
     PLAYER_READY,
     PLAYER_UNREADY,
     ENABLE,
-    DISABLE
+    DISABLE,
+    ADD_BOT,
+    REMOVE_BOT
 }

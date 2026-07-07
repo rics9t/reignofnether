@@ -3,6 +3,8 @@ package com.solegendary.reignofnether.startpos;
 import com.solegendary.reignofnether.ReignOfNether;
 import com.solegendary.reignofnether.alliance.AlliancesServerEvents;
 import com.solegendary.reignofnether.blocks.RTSStartBlock;
+import com.solegendary.reignofnether.bot.BotDifficulty;
+import com.solegendary.reignofnether.bot.BotServerEvents;
 import com.solegendary.reignofnether.player.PlayerColors;
 import com.solegendary.reignofnether.player.PlayerServerEvents;
 import com.solegendary.reignofnether.player.RTSPlayer;
@@ -44,6 +46,8 @@ public class StartPosServerEvents {
 
     private static int cullTicksMax = 100;
     private static int cullTicks = 0;
+
+    public static final String BOT_NAME_PREFIX = "CPU ";
 
     public static boolean isStartingGame() {
         return startingGame;
@@ -92,6 +96,107 @@ public class StartPosServerEvents {
             StartPosClientboundPacket.enablePos(pos);
         else
             StartPosClientboundPacket.disablePos(pos);
+    }
+
+    public static boolean isBotStartName(String playerName) {
+        return playerName.startsWith(BOT_NAME_PREFIX);
+    }
+
+    public static void addBot(BotDifficulty difficulty) {
+        if (startingGame)
+            return;
+
+        StartPos target = null;
+        for (StartPos startPos : startPoses) {
+            if (startPos.enabled && startPos.playerName.isBlank()) {
+                target = startPos;
+                break;
+            }
+        }
+        if (target == null)
+            return;
+
+        String name = getNextBotName();
+        target.reset();
+        target.faction = getNextBotFaction();
+        target.playerName = name;
+        target.ready = true;
+        BotServerEvents.setDifficulty(name, difficulty);
+        StartPosClientboundPacket.reservePos(target.pos, target.faction, target.playerName);
+        StartPosClientboundPacket.readyPlayer(target.playerName);
+        updateCountdownState();
+    }
+
+    public static void removeBot() {
+        if (startingGame)
+            return;
+
+        for (int i = startPoses.size() - 1; i >= 0; i--) {
+            StartPos startPos = startPoses.get(i);
+            if (isBotStartName(startPos.playerName)) {
+                String botName = startPos.playerName;
+                BlockPos pos = startPos.pos;
+                startPos.reset();
+                BotServerEvents.removeData(botName);
+                StartPosClientboundPacket.unreservePos(pos);
+                updateCountdownState();
+                return;
+            }
+        }
+    }
+
+    private static String getNextBotName() {
+        int index = 1;
+        boolean used;
+        do {
+            used = false;
+            String name = BOT_NAME_PREFIX + index;
+            for (StartPos startPos : startPoses) {
+                if (startPos.playerName.equals(name)) {
+                    used = true;
+                    break;
+                }
+            }
+            if (!used)
+                return name;
+            index += 1;
+        } while (index < MAX_START_POSES + 1);
+        return BOT_NAME_PREFIX + index;
+    }
+
+    private static Faction getNextBotFaction() {
+        List<Faction> factions = List.of(Faction.VILLAGERS, Faction.MONSTERS, Faction.PIGLINS);
+        for (Faction faction : factions) {
+            boolean used = false;
+            for (StartPos startPos : startPoses) {
+                if (startPos.enabled && !startPos.playerName.isBlank() && startPos.faction == faction) {
+                    used = true;
+                    break;
+                }
+            }
+            if (!used)
+                return faction;
+        }
+        int botCount = 0;
+        for (StartPos startPos : startPoses)
+            if (isBotStartName(startPos.playerName))
+                botCount += 1;
+        return factions.get(botCount % factions.size());
+    }
+
+    private static void updateCountdownState() {
+        boolean shouldStartGame = true;
+        for (StartPos startPos : startPoses) {
+            if (startPos.enabled && (!startPos.ready || startPos.playerName.isBlank())) {
+                shouldStartGame = false;
+                break;
+            }
+        }
+        if (shouldStartGame) {
+            startGameCountdown();
+        } else if (startingGame) {
+            cancelStartGameCountdown(false);
+        }
     }
 
     @SubscribeEvent
@@ -186,9 +291,21 @@ public class StartPosServerEvents {
                 } else {
                     PlayerServerEvents.sendMessageToAllPlayers("startpos.reignofnether.started_game", true);
                     SoundClientboundPacket.playSoundForAllPlayers(SoundAction.ALLY);
+                    for (StartPos startPos : startPoses) {
+                        if (startPos.faction != Faction.NONE && isBotStartName(startPos.playerName)) {
+                            PlayerServerEvents.startRTSBot(
+                                    startPos.playerName,
+                                    new Vec3(startPos.pos.getX(), startPos.pos.getY(), startPos.pos.getZ()),
+                                    startPos.faction,
+                                    startPos.colorId,
+                                    BotServerEvents.getDifficulty(startPos.playerName)
+                            );
+                        }
+                    }
                     for (ServerPlayer serverPlayer : PlayerServerEvents.players) {
                         for (StartPos startPos : startPoses) {
-                            if (startPos.playerName.equals(serverPlayer.getName().getString()) && startPos.faction != Faction.NONE) {
+                            if (!isBotStartName(startPos.playerName) &&
+                                    startPos.playerName.equals(serverPlayer.getName().getString()) && startPos.faction != Faction.NONE) {
                                 PlayerServerEvents.startRTS(
                                         serverPlayer.getId(),
                                         new Vec3(startPos.pos.getX(), startPos.pos.getY(), startPos.pos.getZ()),

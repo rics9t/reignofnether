@@ -1,6 +1,7 @@
 package com.solegendary.reignofnether.startpos;
 
 import com.solegendary.reignofnether.ReignOfNether;
+import com.solegendary.reignofnether.bot.BotDifficulty;
 import com.solegendary.reignofnether.registrars.PacketHandler;
 import com.solegendary.reignofnether.faction.Faction;
 import net.minecraft.core.BlockPos;
@@ -17,6 +18,7 @@ public class StartPosServerboundPacket {
     BlockPos blockPos;
     Faction faction;
     String playerName;
+    BotDifficulty botDifficulty;
 
     public static void reservePos(BlockPos pos, Faction faction, String playerName) {
         PacketHandler.INSTANCE.sendToServer(new StartPosServerboundPacket(StartPosAction.RESERVE, pos, faction, playerName));
@@ -42,11 +44,27 @@ public class StartPosServerboundPacket {
         PacketHandler.INSTANCE.sendToServer(new StartPosServerboundPacket(StartPosAction.DISABLE, pos, Faction.NONE, ""));
     }
 
+    public static void addBot(BotDifficulty difficulty) {
+        PacketHandler.INSTANCE.sendToServer(new StartPosServerboundPacket(StartPosAction.ADD_BOT,
+                BlockPos.ZERO, Faction.NONE, "", difficulty));
+    }
+
+    public static void removeBot() {
+        PacketHandler.INSTANCE.sendToServer(new StartPosServerboundPacket(StartPosAction.REMOVE_BOT,
+                BlockPos.ZERO, Faction.NONE, ""));
+    }
+
     public StartPosServerboundPacket(StartPosAction action, BlockPos pos, Faction faction, String playerName) {
+        this(action, pos, faction, playerName, BotDifficulty.NORMAL);
+    }
+
+    public StartPosServerboundPacket(StartPosAction action, BlockPos pos, Faction faction, String playerName,
+                                     BotDifficulty botDifficulty) {
         this.action = action;
         this.blockPos = pos;
         this.faction = faction;
         this.playerName = playerName;
+        this.botDifficulty = botDifficulty;
     }
 
     public StartPosServerboundPacket(FriendlyByteBuf buffer) {
@@ -54,6 +72,7 @@ public class StartPosServerboundPacket {
         this.blockPos = buffer.readBlockPos();
         this.faction = buffer.readEnum(Faction.class);
         this.playerName = buffer.readUtf();
+        this.botDifficulty = buffer.readEnum(BotDifficulty.class);
     }
 
     public void encode(FriendlyByteBuf buffer) {
@@ -61,6 +80,7 @@ public class StartPosServerboundPacket {
         buffer.writeBlockPos(this.blockPos);
         buffer.writeEnum(this.faction);
         buffer.writeUtf(this.playerName);
+        buffer.writeEnum(this.botDifficulty);
     }
 
     // server-side packet-consuming functions
@@ -77,6 +97,12 @@ public class StartPosServerboundPacket {
             else if ((action == StartPosAction.ENABLE || action == StartPosAction.DISABLE) &&
                     !player.hasPermissions(4)) {
                 ReignOfNether.LOGGER.warn("GameruleServerboundPacket: Tried to process packet from " + player.getName() + " with insufficient permissions");
+                success.set(false);
+                return;
+            }
+            else if ((action == StartPosAction.ADD_BOT || action == StartPosAction.REMOVE_BOT) &&
+                    !player.hasPermissions(2)) {
+                ReignOfNether.LOGGER.warn("StartPosServerboundPacket: Tried to process bot action from " + player.getName() + " with insufficient permissions");
                 success.set(false);
                 return;
             }
@@ -113,6 +139,8 @@ public class StartPosServerboundPacket {
                 case PLAYER_UNREADY -> StartPosServerEvents.setPlayerReady(playerName, false);
                 case ENABLE -> StartPosServerEvents.setPosEnabled(blockPos, true);
                 case DISABLE -> StartPosServerEvents.setPosEnabled(blockPos, false);
+                case ADD_BOT -> StartPosServerEvents.addBot(botDifficulty);
+                case REMOVE_BOT -> StartPosServerEvents.removeBot();
             }
             success.set(true);
         });
